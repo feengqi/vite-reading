@@ -173,6 +173,7 @@ const defaultTargetDir = 'vite-project'
 
 async function init() {
   const argTargetDir = formatTargetDir(argv._[0])
+  // 获取要使用的模板名称
   const argTemplate = argv.template || argv.t
 
   let targetDir = argTargetDir || defaultTargetDir
@@ -186,6 +187,7 @@ async function init() {
   try {
     result = await prompts(
       [
+        // 获取输入的项目名，或者使用默认的 defaultTargetDir-> vite-project
         {
           type: argTargetDir ? null : 'text',
           name: 'projectName',
@@ -195,6 +197,7 @@ async function init() {
             targetDir = formatTargetDir(state.value) || defaultTargetDir
           }
         },
+        // 判断当前目录中是否存在上一步输入的项目名称同名文件夹，并给出提示是否覆盖或取消，
         {
           type: () =>
             !fs.existsSync(targetDir) || isEmpty(targetDir) ? null : 'confirm',
@@ -205,6 +208,7 @@ async function init() {
               : `Target directory "${targetDir}"`) +
             ` is not empty. Remove existing files and continue?`
         },
+        // 取消上一步操作或继续
         {
           type: (_, { overwrite }: { overwrite?: boolean }) => {
             if (overwrite === false) {
@@ -214,6 +218,7 @@ async function init() {
           },
           name: 'overwriteChecker'
         },
+        // 判断输入的文件名（项目名）在package.json中是否有效
         {
           type: () => (isValidPackageName(getProjectName()) ? null : 'text'),
           name: 'packageName',
@@ -222,6 +227,7 @@ async function init() {
           validate: (dir) =>
             isValidPackageName(dir) || 'Invalid package.json name'
         },
+        // 判断选中的模板是否存在，不存在给出提示，
         {
           type:
             argTemplate && TEMPLATES.includes(argTemplate) ? null : 'select',
@@ -241,6 +247,7 @@ async function init() {
             }
           })
         },
+        // 选择js||ts等
         {
           type: (framework: Framework) =>
             framework && framework.variants ? 'select' : null,
@@ -256,6 +263,7 @@ async function init() {
             })
         }
       ],
+      // 取消操作
       {
         onCancel: () => {
           throw new Error(red('✖') + ' Operation cancelled')
@@ -270,17 +278,22 @@ async function init() {
   // user choice associated with prompts
   const { framework, overwrite, packageName, variant } = result
 
+  // 获取到当前项目所在的绝对路径
   const root = path.join(cwd, targetDir)
-
+  // 检查是否存在同名目录且是否为空目录
   if (overwrite) {
+    // 如果在之前的命令选中覆盖同名文件夹，就清空文件夹
     emptyDir(root)
-  } else if (!fs.existsSync(root)) {
+  } else
+    if (!fs.existsSync(root)) {
     fs.mkdirSync(root, { recursive: true })
   }
 
+  // 确定模板
   // determine template
   const template: string = variant || framework || argTemplate
 
+  // 判断是否设置了包管理工具，默认是使用的是 npm
   const pkgInfo = pkgFromUserAgent(process.env.npm_config_user_agent)
   const pkgManager = pkgInfo ? pkgInfo.name : 'npm'
   const isYarn1 = pkgManager === 'yarn' && pkgInfo?.version.startsWith('1.')
@@ -315,6 +328,7 @@ async function init() {
 
   console.log(`\nScaffolding project in ${root}...`)
 
+  // 获取选中模板所在的绝对路径
   const templateDir = path.resolve(
     fileURLToPath(import.meta.url),
     '../..',
@@ -329,8 +343,9 @@ async function init() {
       copy(path.join(templateDir, file), targetPath)
     }
   }
-
+  // 拷贝并写入文件
   const files = fs.readdirSync(templateDir)
+  // 个人理解：是为了单独设置项目名称到package.json中，过滤出package.json后设置
   for (const file of files.filter((f) => f !== 'package.json')) {
     write(file)
   }
@@ -341,6 +356,7 @@ async function init() {
 
   pkg.name = packageName || getProjectName()
 
+  // 第五步：拷贝 package.json 提示安装运行
   write('package.json', JSON.stringify(pkg, null, 2))
 
   console.log(`\nDone. Now run:\n`)
@@ -424,6 +440,7 @@ function pkgFromUserAgent(userAgent: string | undefined) {
   }
 }
 
+// 执行初始化方法init
 init().catch((e) => {
   console.error(e)
 })
